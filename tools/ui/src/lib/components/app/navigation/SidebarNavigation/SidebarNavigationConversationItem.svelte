@@ -5,6 +5,7 @@
 		ListChecks,
 		Loader2,
 		MoreHorizontal,
+		PanelTopOpen,
 		Pencil,
 		Pin,
 		PinOff,
@@ -24,7 +25,7 @@
 		UI_DATA_ATTRS
 	} from '$lib/constants';
 	import { RouterService } from '$lib/services/router.service';
-	import { chatStore, conversationsStore } from '$lib/stores';
+	import { chatStore, conversationsStore, settingsStore, tabsStore } from '$lib/stores';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -79,6 +80,20 @@
 		onStop?.(conversation.id);
 	}
 
+	let canOpenInNewTab = $derived(Boolean(settingsStore.config.conversationTabs));
+
+	function openInNewTab() {
+		void tabsStore.openInNewTab(conversation.id);
+	}
+
+	// middle-click opens a background tab, like a link in a browser
+	function handleAuxClick(event: MouseEvent) {
+		if (event.button !== 1 || isSelectionMode || !canOpenInNewTab) return;
+
+		event.preventDefault();
+		openInNewTab();
+	}
+
 	function handleTogglePin() {
 		conversationsStore.toggleConversationPin(conversation.id);
 	}
@@ -111,6 +126,8 @@
 	function handleSelect(event: MouseEvent) {
 		if (isSelectionMode) {
 			onSelectionClick?.(conversation.id, { shiftKey: event.shiftKey });
+		} else if ((event.metaKey || event.ctrlKey) && canOpenInNewTab) {
+			openInNewTab();
 		} else {
 			onSelect?.(conversation.id);
 		}
@@ -168,6 +185,7 @@
 		? 'is-selection-mode'
 		: ''} px-2"
 	{...{ [UI_DATA_ATTRS.CONVERSATION_ROW]: conversation.id }}
+	onauxclick={handleAuxClick}
 	onclick={(e) => handleSelect(e)}
 	onfocusin={handleMouseOver}
 	onfocusout={(e) => {
@@ -252,13 +270,26 @@
 			<DropdownMenuActions
 				bind:open={dropdownOpen}
 				actions={[
+					...(canOpenInNewTab
+						? [
+								{
+									icon: PanelTopOpen,
+									label: 'Open in new tab',
+									onclick: (e: Event) => {
+										e.stopPropagation();
+										openInNewTab();
+									}
+								}
+							]
+						: []),
 					{
 						icon: conversation.pinned ? PinOff : Pin,
 						label: conversation.pinned ? 'Unpin' : 'Pin',
 						onclick: (e: Event) => {
 							e.stopPropagation();
 							handleTogglePin();
-						}
+						},
+						separator: canOpenInNewTab
 					},
 					{
 						icon: Pencil,
